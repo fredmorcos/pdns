@@ -613,6 +613,14 @@ static string queryGeoIP(const Netmask& addr, GeoIPInterface::GeoIPQueryAttribut
       else
         found = gi->queryName(val, gl, ip);
       break;
+    case GeoIPInterface::ISP:
+      if (addr.isIPv6()) found = gi->queryISPV6(val, gl, ip);
+      else found = gi->queryISP(val, gl, ip);
+      break;
+    case GeoIPInterface::Org:
+      if (addr.isIPv6()) found = gi->queryOrgV6(val, gl, ip);
+      else found = gi->queryOrg(val, gl, ip);
+      break;
     case GeoIPInterface::Continent:
       if (addr.isIPv6())
         found = gi->queryContinentV6(val, gl, ip);
