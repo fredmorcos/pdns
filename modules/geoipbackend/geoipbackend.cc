@@ -752,6 +752,19 @@ string GeoIPBackend::format2str(string sformat, const Netmask& addr, GeoIPNetmas
     else if (!sformat.compare(cur, 3, "%ci")) {
       rep = queryGeoIP(addr, GeoIPInterface::City, tmp_gl);
     }
+    else if (sformat.compare(cur, 4, "%nsp") == 0) {
+      rep = queryGeoIP(addr, GeoIPInterface::ISP, tmp_gl);
+      rep = boost::replace_all_copy(rep, " ", "_");
+      nrep = 4;
+    }
+    else if (sformat.compare(cur, 4, "%isp") == 0) {
+      rep = queryGeoIP(addr, GeoIPInterface::ISP, tmp_gl);
+      nrep = 4;
+    }
+    else if (sformat.compare(cur, 4, "%org") == 0) {
+      rep = queryGeoIP(addr, GeoIPInterface::Org, tmp_gl);
+      nrep = 4;
+    }
     else if (!sformat.compare(cur, 4, "%loc")) {
       char ns, ew;
       int d1, d2, m1, m2;

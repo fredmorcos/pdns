@@ -19,6 +19,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
+#include <memory>
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -352,6 +353,78 @@ public:
           ret = asnr[0];
           return true;
         }
+      }
+    }
+    return false;
+  }
+
+  bool queryISP(string& ret, GeoIPNetmask& geoIPNetmask, const string& ipAddr) override
+  {
+    GeoIPLookup tmp_gl = {
+      .netmask = geoIPNetmask.netmask,
+    };
+    if (d_db_type == GEOIP_ISP_EDITION) {
+      auto result = std::make_unique<char*>(GeoIP_name_by_addr_gl(d_gi.get(), ipAddr.c_str(), &tmp_gl));
+      if (result != nullptr) {
+        ret = *result;
+        geoIPNetmask.netmask = tmp_gl.netmask;
+        // reduce space to dash
+        ret = boost::replace_all_copy(ret, " ", "-");
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool queryISPV6(string& ret, GeoIPNetmask& geoIPNetmask, const string& ipAddr) override
+  {
+    GeoIPLookup tmp_gl = {
+      .netmask = geoIPNetmask.netmask,
+    };
+    if (d_db_type == GEOIP_ISP_EDITION_V6) {
+      auto result = std::make_unique<char*>(GeoIP_name_by_addr_v6_gl(d_gi.get(), ipAddr.c_str(), &tmp_gl));
+      if (result != nullptr) {
+        ret = *result;
+        geoIPNetmask.netmask = tmp_gl.netmask;
+        // reduce space to dash
+        ret = boost::replace_all_copy(ret, " ", "-");
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool queryOrg(string& ret, GeoIPNetmask& geoIPNetmask, const string& ipAddr) override
+  {
+    GeoIPLookup tmp_gl = {
+      .netmask = geoIPNetmask.netmask,
+    };
+    if (d_db_type == GEOIP_ORG_EDITION) {
+      auto result = std::make_unique<char*>(GeoIP_name_by_addr_gl(d_gi.get(), ipAddr.c_str(), &tmp_gl));
+      if (result != nullptr) {
+        ret = *result;
+        geoIPNetmask.netmask = tmp_gl.netmask;
+        // reduce space to dash
+        ret = boost::replace_all_copy(ret, " ", "-");
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool queryOrgV6(string& ret, GeoIPNetmask& geoIPNetmask, const string& ipAddr) override
+  {
+    GeoIPLookup tmp_gl = {
+      .netmask = geoIPNetmask.netmask,
+    };
+    if (d_db_type == GEOIP_ORG_EDITION_V6) {
+      auto result = std::make_unique<char*>(GeoIP_name_by_addr_v6_gl(d_gi.get(), ipAddr.c_str(), &tmp_gl));
+      if (result != nullptr) {
+        ret = *result;
+        geoIPNetmask.netmask = tmp_gl.netmask;
+        // reduce space to dash
+        ret = boost::replace_all_copy(ret, " ", "-");
+        return true;
       }
     }
     return false;
