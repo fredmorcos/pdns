@@ -1465,9 +1465,9 @@ static int serviceMain(int argc, char* argv[], Logr::log_t log)
     ips.push_back("0.0.0.0");
     ips.push_back("::");
 
-    for (const auto& ip : ips) {
+    for (const auto& ip : ips)
       SyncRes::addDontQuery(ip);
-    }
+
     if (!g_slogStructured) {
       g_log << Logger::Warning << "Will not send queries to: ";
       for (vector<string>::const_iterator i = ips.begin(); i != ips.end(); ++i) {

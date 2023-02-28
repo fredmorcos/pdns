@@ -975,10 +975,11 @@ static string DLRestHandler(const vector<string>& parts, pid_t /* ppid */)
 {
   string line;
 
-  for (vector<string>::const_iterator i = parts.begin(); i != parts.end(); ++i) {
-    if (i != parts.begin())
+  for (vector<string>::const_iterator iterationVariable = parts.begin(); iterationVariable != parts.end(); ++iterationVariable) {
+    if (iterationVariable != parts.begin())
       line.append(1, ' ');
-    line.append(*i);
+
+    line.append(*iterationVariable);
   }
   line.append(1, '\n');
 
@@ -993,6 +994,10 @@ static string DLRestHandler(const vector<string>& parts, pid_t /* ppid */)
   char mesg[512];
   string response;
   while (fgets(mesg, sizeof(mesg), g_fp)) {
+    if (mesg == NULL) {
+      // Do something?
+    }
+
     if (*mesg == '\0')
       break;
     response += mesg;
