@@ -219,9 +219,8 @@ void DynBlockRulesGroup::addOrRefreshBlock(boost::optional<NetmaskTree<DynBlock,
          don't override it */
       return;
     }
-    else if (!warning && got->second.warning) {
+    else if (!warning && got->second.warning)
       wasWarning = true;
-    }
     else {
       if (until < got->second.until) {
         // had a longer policy
