@@ -40,10 +40,18 @@ jobs:
           restore-keys: auth-ccache-
       - run: build-scripts/gh-actions-setup-inv  # this runs apt update+upgrade
       - run: inv install-clang
+      - run: inv install-clang-tidy-tools
       - run: inv install-auth-build-deps
       - run: inv ci-autoconf
       - run: inv ci-auth-configure
-      - run: inv ci-auth-make
+      - run: inv ci-auth-make-bear  # This runs under pdns/
+      - name: Store the compilation database
+        uses: actions/upload-artifact@v3
+        with:
+          name: auth_compile_commands
+          path: pdns/compile_commands.json
+          retention-days: 1
+          if-no-files-found: error  # error|warn|ignore, defaults to warn
       - run: inv ci-auth-install-remotebackend-test-deps
       - run: inv ci-auth-run-unit-tests
       - run: inv ci-make-install
@@ -54,6 +62,38 @@ jobs:
           name: pdns-auth
           path: /opt/pdns-auth
           retention-days: 1
+
+  clang-tidy-auth:
+    name: clang-tidy auth
+    runs-on: ubuntu-20.04
+    needs: build-auth
+    steps:
+      - uses: PowerDNS/pdns/set-ubuntu-mirror@meta
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+      - name: Retrieve the compilation database
+        uses: actions/download-artifact@v3
+        with:
+          name: auth_compile_commands
+          path: pdns/compile_commands.json
+      - run: mkdir clang-tidy-results
+      - run: ln -s .clang-tidy.full .clang-tidy
+      - name: Run clang-tidy
+        working-directory: pdns
+        run: git diff -U0 HEAD^ | python /usr/bin/clang-tidy-diff-12.py -p2 -export-fixes ../clang-tidy-results/auth-fixes.yml
+      - name: Print clang-tidy fixes YAML
+        shell: bash
+        run: |
+          if [ -f clang-tidy-results/auth-fixes.yml ]; then
+            cat clang-tidy-results/auth-fixes.yml
+          fi
+      - name: Result annotations
+        shell: bash
+        run: |
+          if [ -f clang-tidy-results/auth-fixes.yml ]; then
+            python .github/scripts/clang-tidy.py --fixes-file clang-tidy-results/auth-fixes.yml
+          fi
 
   build-recursor:
     name: build recursor
