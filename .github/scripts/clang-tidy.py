@@ -62,13 +62,14 @@ def main():
     for fix in fixes:
         name = fix["DiagnosticName"]
         level = fix["Level"]
-        directory = fix["BuildDirectory"]
+        # directory = fix["BuildDirectory"]
         diagnostic = fix["DiagnosticMessage"]
         offset = diagnostic["FileOffset"]
         filename = diagnostic["FilePath"]
         message = diagnostic["Message"]
 
-        full_filename = directory + os.path.sep + filename
+        # full_filename = directory + os.path.sep + filename
+        full_filename = filename
         try:
             file_contents = load_file(full_filename)
         except OSError:
