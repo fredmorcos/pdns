@@ -130,10 +130,18 @@ jobs:
       - run: ../../build-scripts/gh-actions-setup-inv  # this runs apt update+upgrade
       - run: inv apt-fresh
       - run: inv install-clang
+      - run: inv install-clang-tidy-tools
       - run: inv install-rec-build-deps
       - run: inv ci-autoconf
       - run: inv ci-rec-configure
-      - run: inv ci-rec-make
+      - run: inv ci-rec-make-bear
+      - name: Store the compilation database
+        uses: actions/upload-artifact@v3
+        with:
+          name: rec_compile_commands
+          path: compile_commands.json
+          retention-days: 1
+          if-no-files-found: error  # error|warn|ignore, defaults to warn
       - run: inv ci-rec-run-unit-tests
       - run: inv ci-make-install
       - run: ccache -s
@@ -143,6 +151,38 @@ jobs:
           name: pdns-recursor-${{ matrix.sanitizers }}
           path: /opt/pdns-recursor
           retention-days: 1
+
+  clang-tidy-recursor:
+    name: clang-tidy recursor
+    runs-on: ubuntu-20.04
+    needs: build-recursor
+    steps:
+      - uses: PowerDNS/pdns/set-ubuntu-mirror@meta
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+      - name: Retrieve the compilation database
+        uses: actions/download-artifact@v3
+        with:
+          name: rec_compile_commands
+          path: pdns/recursordist/compile_commands.json
+      - run: mkdir clang-tidy-results
+      - run: ln -s .clang-tidy.full .clang-tidy
+      - name: Run clang-tidy
+        working-directory: pdns/recursordist/
+        run: git diff -U0 HEAD^ | python /usr/bin/clang-tidy-diff-12.py -p3 -export-fixes ../../clang-tidy-results/rec-fixes.yml
+      - name: Print clang-tidy fixes YAML
+        shell: bash
+        run: |
+          if [ -f clang-tidy-results/rec-fixes.yml ]; then
+            cat clang-tidy-results/rec-fixes.yml
+          fi
+      - name: Result annotations
+        shell: bash
+        run: |
+          if [ -f clang-tidy-results/rec-fixes.yml ]; then
+            python .github/scripts/clang-tidy.py --fixes-file clang-tidy-results/rec-fixes.yml
+          fi
 
   build-dnsdist:
     name: build dnsdist
