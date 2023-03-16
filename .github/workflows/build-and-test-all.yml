@@ -223,10 +223,18 @@ jobs:
       - run: ../../build-scripts/gh-actions-setup-inv  # this runs apt update+upgrade
       - run: inv apt-fresh
       - run: inv install-clang
+      - run: inv install-clang-tidy-tools
       - run: inv install-dnsdist-build-deps
       - run: inv ci-autoconf
       - run: inv ci-dnsdist-configure ${{ matrix.features }}
-      - run: inv ci-dnsdist-make
+      - run: inv ci-dnsdist-make-bear
+      - name: Store the compilation database
+        uses: actions/upload-artifact@v3
+        with:
+          name: dnsdist_compile_commands
+          path: compile_commands.json
+          retention-days: 1
+          if-no-files-found: error  # error|warn|ignore, defaults to warn
       - run: inv ci-dnsdist-run-unit-tests
       - run: inv ci-make-install
       - run: ccache -s
@@ -236,6 +244,38 @@ jobs:
           name: dnsdist-${{ matrix.features }}-${{ matrix.sanitizers }}
           path: /opt/dnsdist
           retention-days: 1
+
+  clang-tidy-dnsdist:
+    name: clang-tidy dnsdist
+    runs-on: ubuntu-20.04
+    needs: build-dnsdist
+    steps:
+      - uses: PowerDNS/pdns/set-ubuntu-mirror@meta
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+      - name: Retrieve the compilation database
+        uses: actions/download-artifact@v3
+        with:
+          name: dnsdist_compile_commands
+          path: pdns/dnsdistdist/compile_commands.json
+      - run: mkdir clang-tidy-results
+      - run: ln -s .clang-tidy.full .clang-tidy
+      - name: Run clang-tidy
+        working-directory: pdns/dnsdistdist/
+        run: git diff -U0 HEAD^ | python /usr/bin/clang-tidy-diff-12.py -p3 -export-fixes ../../clang-tidy-results/dnsdist-fixes.yml
+      - name: Print clang-tidy fixes YAML
+        shell: bash
+        run: |
+          if [ -f clang-tidy-results/dnsdist-fixes.yml ]; then
+            cat clang-tidy-results/dnsdist-fixes.yml
+          fi
+      - name: Result annotations
+        shell: bash
+        run: |
+          if [ -f clang-tidy-results/dnsdist-fixes.yml ]; then
+            python .github/scripts/clang-tidy.py --fixes-file clang-tidy-results/dnsdist-fixes.yml
+          fi
 
   test-auth-api:
     needs: build-auth
