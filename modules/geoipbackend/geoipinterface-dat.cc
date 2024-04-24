@@ -368,7 +368,7 @@ public:
       if (result != nullptr) {
         ret = *result;
         geoIPNetmask.netmask = tmp_gl.netmask;
-        // reduce space to dash
+        // Replace spaces with dashes.
         ret = boost::replace_all_copy(ret, " ", "-");
         return true;
       }
@@ -386,7 +386,7 @@ public:
       if (result != nullptr) {
         ret = *result;
         geoIPNetmask.netmask = tmp_gl.netmask;
-        // reduce space to dash
+        // Replace spaces with dashes.
         ret = boost::replace_all_copy(ret, " ", "-");
         return true;
       }
@@ -404,7 +404,7 @@ public:
       if (result != nullptr) {
         ret = *result;
         geoIPNetmask.netmask = tmp_gl.netmask;
-        // reduce space to dash
+        // Replace spaces with dashes.
         ret = boost::replace_all_copy(ret, " ", "-");
         return true;
       }
@@ -422,7 +422,7 @@ public:
       if (result != nullptr) {
         ret = *result;
         geoIPNetmask.netmask = tmp_gl.netmask;
-        // reduce space to dash
+        // Replace spaces with dashes.
         ret = boost::replace_all_copy(ret, " ", "-");
         return true;
       }
