@@ -913,6 +913,7 @@ NSes
 nsid
 nsis
 nsl
+nsp
 nsrecord
 nsset
 nsspeeds
