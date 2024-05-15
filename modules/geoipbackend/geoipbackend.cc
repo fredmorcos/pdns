@@ -19,14 +19,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
-#include <cstdint>
-#ifdef HAVE_CONFIG_H
 #include "config.h"
-#endif
 #include "geoipbackend.hh"
 #include "geoipinterface.hh"
 #include "pdns/dns_random.hh"
+#include <cstdint>
 #include <sstream>
+#include <cmath>
 #include <regex.h>
 #include <glob.h>
 #include <boost/algorithm/string/replace.hpp>
@@ -711,53 +710,52 @@ static bool queryGeoLocation(const Netmask& addr, GeoIPNetmask& gl, double& lat,
   return false;
 }
 
-string GeoIPBackend::format2str(string sformat, const Netmask& addr, GeoIPNetmask& gl, const GeoIPDomain& dom)
+string GeoIPBackend::format2str(string sformat, const Netmask& addr, GeoIPNetmask& geoIPNetmask, const GeoIPDomain& dom)
 {
-  string::size_type cur, last;
-  boost::optional<int> alt, prec;
-  double lat, lon;
-  time_t t = time(nullptr);
-  GeoIPNetmask tmp_gl; // largest wins
-  struct tm gtm;
-  gmtime_r(&t, &gtm);
+  string::size_type cur = 0;
+  string::size_type last = 0;
+  time_t currentTime = time(nullptr);
+  GeoIPNetmask tmp_gl{}; // largest wins
+  struct tm gtm{};
+  gmtime_r(&currentTime, &gtm);
   last = 0;
 
   while ((cur = sformat.find('%', last)) != string::npos) {
     string rep;
     int nrep = 3;
     tmp_gl.netmask = 0;
-    if (!sformat.compare(cur, 3, "%mp")) {
+    if (sformat.compare(cur, 3, "%mp") == 0) {
       rep = "unknown";
       for (const auto& lookupFormat : dom.mapping_lookup_formats) {
-        auto it = dom.custom_mapping.find(format2str(lookupFormat, addr, gl, dom));
-        if (it != dom.custom_mapping.end()) {
-          rep = it->second;
+        auto mappingIterator = dom.custom_mapping.find(format2str(lookupFormat, addr, geoIPNetmask, dom));
+        if (mappingIterator != dom.custom_mapping.end()) {
+          rep = mappingIterator->second;
           break;
         }
       }
     }
-    else if (!sformat.compare(cur, 3, "%cn")) {
+    else if (sformat.compare(cur, 3, "%cn") == 0) {
       rep = queryGeoIP(addr, GeoIPInterface::Continent, tmp_gl);
     }
-    else if (!sformat.compare(cur, 3, "%co")) {
+    else if (sformat.compare(cur, 3, "%co") == 0) {
       rep = queryGeoIP(addr, GeoIPInterface::Country, tmp_gl);
     }
-    else if (!sformat.compare(cur, 3, "%cc")) {
+    else if (sformat.compare(cur, 3, "%cc") == 0) {
       rep = queryGeoIP(addr, GeoIPInterface::Country2, tmp_gl);
     }
-    else if (!sformat.compare(cur, 3, "%af")) {
+    else if (sformat.compare(cur, 3, "%af") == 0) {
       rep = (addr.isIPv6() ? "v6" : "v4");
     }
-    else if (!sformat.compare(cur, 3, "%as")) {
+    else if (sformat.compare(cur, 3, "%as") == 0) {
       rep = queryGeoIP(addr, GeoIPInterface::ASn, tmp_gl);
     }
-    else if (!sformat.compare(cur, 3, "%re")) {
+    else if (sformat.compare(cur, 3, "%re") == 0) {
       rep = queryGeoIP(addr, GeoIPInterface::Region, tmp_gl);
     }
-    else if (!sformat.compare(cur, 3, "%na")) {
+    else if (sformat.compare(cur, 3, "%na") == 0) {
       rep = queryGeoIP(addr, GeoIPInterface::Name, tmp_gl);
     }
-    else if (!sformat.compare(cur, 3, "%ci")) {
+    else if (sformat.compare(cur, 3, "%ci") == 0) {
       rep = queryGeoIP(addr, GeoIPInterface::City, tmp_gl);
     }
     else if (sformat.compare(cur, 4, "%nsp") == 0) {
@@ -773,38 +771,56 @@ string GeoIPBackend::format2str(string sformat, const Netmask& addr, GeoIPNetmas
       rep = queryGeoIP(addr, GeoIPInterface::Org, tmp_gl);
       nrep = 4;
     }
-    else if (!sformat.compare(cur, 4, "%loc")) {
-      char ns, ew;
-      int d1, d2, m1, m2;
-      double s1, s2;
-      if (!queryGeoLocation(addr, gl, lat, lon, alt, prec)) {
+    else if (sformat.compare(cur, 4, "%loc") == 0) {
+      double lat = NAN;
+      double lon = NAN;
+      boost::optional<int> alt;
+      boost::optional<int> prec;
+
+      if (!queryGeoLocation(addr, geoIPNetmask, lat, lon, alt, prec)) {
         rep = "";
         tmp_gl.netmask = (addr.isIPv6() ? 128 : 32);
       }
       else {
-        ns = (lat > 0) ? 'N' : 'S';
-        ew = (lon > 0) ? 'E' : 'W';
-        /* remove sign */
-        lat = fabs(lat);
-        lon = fabs(lon);
-        d1 = static_cast<int>(lat);
-        d2 = static_cast<int>(lon);
-        m1 = static_cast<int>((lat - d1) * 60.0);
-        m2 = static_cast<int>((lon - d2) * 60.0);
-        s1 = static_cast<double>(lat - d1 - m1 / 60.0) * 3600.0;
-        s2 = static_cast<double>(lon - d2 - m2 / 60.0) * 3600.0;
-        rep = str(boost::format("%d %d %0.3f %c %d %d %0.3f %c") % d1 % m1 % s1 % ns % d2 % m2 % s2 % ew);
-        if (alt)
-          rep = rep + str(boost::format(" %d.00") % *alt);
-        else
-          rep = rep + string(" 0.00");
-        if (prec)
-          rep = rep + str(boost::format(" %dm") % *prec);
+
+      int lat_i = 0;
+      int lon_i = 0;
+      int m1 = 0;
+      int m2 = 0;
+      double s1 = NAN;
+      double s2 = NAN;
+
+      char northOrSouth = (lat > 0) ? 'N' : 'S';
+      char eastOrWest = (lon > 0) ? 'E' : 'W';
+      /* remove sign */
+      lat = fabs(lat);
+      lon = fabs(lon);
+      lat_i = static_cast<int>(lat);
+      lon_i = static_cast<int>(lon);
+      m1 = static_cast<int>((lat - lat_i) * 60.0);
+      m2 = static_cast<int>((lon - lon_i) * 60.0);
+      s1 = static_cast<double>(lat - lat_i - m1 / 60.0) * 3600.0;
+      s2 = static_cast<double>(lon - lon_i - m2 / 60.0) * 3600.0;
+      rep = str(boost::format("%d %d %0.3f %c %d %d %0.3f %c") % lat_i % m1 % s1 % northOrSouth % lon_i % m2 % s2 % eastOrWest);
+      if (alt) {
+        rep += str(boost::format(" %d.00") % *alt);
+      }
+      else {
+        rep += string(" 0.00");
+      }
+      if (prec) {
+        rep += str(boost::format(" %dm") % *prec);
+      }
       }
       nrep = 4;
     }
-    else if (!sformat.compare(cur, 4, "%lat")) {
-      if (!queryGeoLocation(addr, gl, lat, lon, alt, prec)) {
+    else if (sformat.compare(cur, 4, "%lat") == 0) {
+      double lat = NAN;
+      double lon = NAN;
+      boost::optional<int> alt;
+      boost::optional<int> prec;
+
+      if (!queryGeoLocation(addr, geoIPNetmask, lat, lon, alt, prec)) {
         rep = "";
         tmp_gl.netmask = (addr.isIPv6() ? 128 : 32);
       }
@@ -813,8 +829,13 @@ string GeoIPBackend::format2str(string sformat, const Netmask& addr, GeoIPNetmas
       }
       nrep = 4;
     }
-    else if (!sformat.compare(cur, 4, "%lon")) {
-      if (!queryGeoLocation(addr, gl, lat, lon, alt, prec)) {
+    else if (sformat.compare(cur, 4, "%lon") == 0) {
+      double lat = NAN;
+      double lon = NAN;
+      boost::optional<int> alt;
+      boost::optional<int> prec;
+
+      if (!queryGeoLocation(addr, geoIPNetmask, lat, lon, alt, prec)) {
         rep = "";
         tmp_gl.netmask = (addr.isIPv6() ? 128 : 32);
       }
@@ -823,57 +844,61 @@ string GeoIPBackend::format2str(string sformat, const Netmask& addr, GeoIPNetmas
       }
       nrep = 4;
     }
-    else if (!sformat.compare(cur, 3, "%hh")) {
+    else if (sformat.compare(cur, 3, "%hh") == 0) {
       rep = boost::str(boost::format("%02d") % gtm.tm_hour);
       tmp_gl.netmask = (addr.isIPv6() ? 128 : 32);
     }
-    else if (!sformat.compare(cur, 3, "%yy")) {
+    else if (sformat.compare(cur, 3, "%yy") == 0) {
       rep = boost::str(boost::format("%02d") % (gtm.tm_year + 1900));
       tmp_gl.netmask = (addr.isIPv6() ? 128 : 32);
     }
-    else if (!sformat.compare(cur, 3, "%dd")) {
+    else if (sformat.compare(cur, 3, "%dd") == 0) {
       rep = boost::str(boost::format("%02d") % (gtm.tm_yday + 1));
       tmp_gl.netmask = (addr.isIPv6() ? 128 : 32);
     }
-    else if (!sformat.compare(cur, 4, "%wds")) {
+    else if (sformat.compare(cur, 4, "%wds") == 0) {
       nrep = 4;
       rep = GeoIP_WEEKDAYS.at(gtm.tm_wday);
       tmp_gl.netmask = (addr.isIPv6() ? 128 : 32);
     }
-    else if (!sformat.compare(cur, 4, "%mos")) {
+    else if (sformat.compare(cur, 4, "%mos") == 0) {
       nrep = 4;
       rep = GeoIP_MONTHS.at(gtm.tm_mon);
       tmp_gl.netmask = (addr.isIPv6() ? 128 : 32);
     }
-    else if (!sformat.compare(cur, 3, "%wd")) {
+    else if (sformat.compare(cur, 3, "%wd") == 0) {
       rep = boost::str(boost::format("%02d") % (gtm.tm_wday + 1));
       tmp_gl.netmask = (addr.isIPv6() ? 128 : 32);
     }
-    else if (!sformat.compare(cur, 3, "%mo")) {
+    else if (sformat.compare(cur, 3, "%mo") == 0) {
       rep = boost::str(boost::format("%02d") % (gtm.tm_mon + 1));
       tmp_gl.netmask = (addr.isIPv6() ? 128 : 32);
     }
-    else if (!sformat.compare(cur, 4, "%ip6")) {
+    else if (sformat.compare(cur, 4, "%ip6") == 0) {
       nrep = 4;
-      if (addr.isIPv6())
+      if (addr.isIPv6()) {
         rep = addr.toStringNoMask();
-      else
+      }
+      else {
         rep = "";
+      }
       tmp_gl.netmask = (addr.isIPv6() ? 128 : 32);
     }
-    else if (!sformat.compare(cur, 4, "%ip4")) {
+    else if (sformat.compare(cur, 4, "%ip4") == 0) {
       nrep = 4;
-      if (!addr.isIPv6())
+      if (!addr.isIPv6()) {
         rep = addr.toStringNoMask();
-      else
+      }
+      else {
         rep = "";
+      }
       tmp_gl.netmask = (addr.isIPv6() ? 128 : 32);
     }
-    else if (!sformat.compare(cur, 3, "%ip")) {
+    else if (sformat.compare(cur, 3, "%ip") == 0) {
       rep = addr.toStringNoMask();
       tmp_gl.netmask = (addr.isIPv6() ? 128 : 32);
     }
-    else if (!sformat.compare(cur, 2, "%%")) {
+    else if (sformat.compare(cur, 2, "%%") == 0) {
       last = cur + 2;
       continue;
     }
@@ -881,8 +906,9 @@ string GeoIPBackend::format2str(string sformat, const Netmask& addr, GeoIPNetmas
       last = cur + 1;
       continue;
     }
-    if (tmp_gl.netmask > gl.netmask)
-      gl.netmask = tmp_gl.netmask;
+    if (tmp_gl.netmask > geoIPNetmask.netmask) {
+      geoIPNetmask.netmask = tmp_gl.netmask;
+    }
     sformat.replace(cur, nrep, rep);
     last = cur + rep.size(); // move to next attribute
   }
